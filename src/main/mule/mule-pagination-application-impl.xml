@@ -1,0 +1,249 @@
+<?xml version="1.0" encoding="UTF-8"?>
+
+<mule xmlns:os="http://www.mulesoft.org/schema/mule/os" xmlns:ee="http://www.mulesoft.org/schema/mule/ee/core"
+	xmlns:db="http://www.mulesoft.org/schema/mule/db"
+	xmlns:http="http://www.mulesoft.org/schema/mule/http" xmlns="http://www.mulesoft.org/schema/mule/core" xmlns:doc="http://www.mulesoft.org/schema/mule/documentation" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://www.mulesoft.org/schema/mule/core http://www.mulesoft.org/schema/mule/core/current/mule.xsd
+http://www.mulesoft.org/schema/mule/http http://www.mulesoft.org/schema/mule/http/current/mule-http.xsd
+http://www.mulesoft.org/schema/mule/db http://www.mulesoft.org/schema/mule/db/current/mule-db.xsd
+http://www.mulesoft.org/schema/mule/ee/core http://www.mulesoft.org/schema/mule/ee/core/current/mule-ee.xsd
+http://www.mulesoft.org/schema/mule/os http://www.mulesoft.org/schema/mule/os/current/mule-os.xsd">
+	<sub-flow name="mule-pagination-application-impl_getAllSalesRecord_SubFlow" doc:id="493222d5-45ce-4bce-b829-b496d10a1500" >
+		<ee:transform doc:name="Save params" doc:id="6b9cd328-995a-4e35-9a82-965c9f813efd" >
+			<ee:message >
+			</ee:message>
+			<ee:variables >
+				<ee:set-variable variableName="params" ><![CDATA[%dw 2.0
+output application/java
+---
+if(isEmpty(attributes.queryParams))
+"records"
+else
+attributes.queryParams pluck $ joinBy "," 
+
+]]></ee:set-variable>
+				<ee:set-variable variableName="size" ><![CDATA[%dw 2.0
+output application/java
+---
+attributes.queryParams.pageSize]]></ee:set-variable>
+				<ee:set-variable variableName="cursor" ><![CDATA[%dw 2.0
+output application/java
+---
+attributes.queryParams.pageCursor]]></ee:set-variable>
+				<ee:set-variable variableName="sortBy" ><![CDATA[%dw 2.0
+output application/java
+var getDatabseFieldMapping = 
+(if(not isEmpty(attributes.queryParams.sortBy))
+(if((attributes.queryParams.sortBy splitBy ":")[0] == "region")
+"Region"
+else if((attributes.queryParams.sortBy splitBy ":")[0] == "country")
+"Country"
+else if((attributes.queryParams.sortBy splitBy ":")[0] == "salesChannel")
+"Sales_Channel"
+else if((attributes.queryParams.sortBy splitBy ":")[0] == "itemType")
+"Item_Type"
+else if((attributes.queryParams.sortBy splitBy ":")[0] == "profit")
+"Total_Profit"
+else
+"Order_ID")
+else
+null)
+---
+{
+"value": getDatabseFieldMapping default "Order_ID",
+"type": if(not isEmpty(attributes.queryParams.sortBy)) upper((attributes.queryParams.sortBy splitBy ":")[1]) default "DESC" else "DESC"
+}]]></ee:set-variable>
+				<ee:set-variable variableName="profit" ><![CDATA[%dw 2.0
+output application/java 
+---
+{
+"value": if(not isEmpty(attributes.queryParams.profit ))(attributes.queryParams.profit splitBy ":")[0] as Number else null,
+"type": if(not isEmpty(attributes.queryParams.profit ))(attributes.queryParams.profit splitBy ":")[1] else null
+}]]></ee:set-variable>
+			</ee:variables>
+		</ee:transform>
+		<ee:transform doc:name="Set parameters" doc:id="a9b17a79-8db2-4ac2-ad19-dbf04c0413de">
+			<ee:message>
+			</ee:message>
+			<ee:variables>
+				<ee:set-variable variableName="whereClause"><![CDATA[%dw 2.0
+output application/java
+var lib = readUrl("classpath://dw/scripts/myLib.wev")
+var setCursorWithNoParams = if (not isEmpty(vars.cursor)) " WHERE Order_ID > :cursor " else ""
+var setCursorWithParams = if (not isEmpty(vars.cursor)) " AND Order_ID > :cursor " else ""
+var setPageSizeLimit = if(not isEmpty(vars.size)) " LIMIT " ++ vars.size else " LIMIT 20"
+var setProfitCondition = if(not isEmpty(vars.profit.'type') and vars.profit.'type' == 'gt') "Total_Profit >= " else "Total_Profit <= " 
+var sortByCondition = if(not isEmpty(vars.sortBy)) " ORDER BY " ++ vars.sortBy.value ++ " " ++ vars.sortBy.'type' else ""
+var arrString = ([
+	lib.formatParameter('Region = ',lib.addNameIfNotNull(':region', attributes.queryParams.region)),
+	lib.formatParameter('Country = ',lib.addNameIfNotNull(':country', attributes.queryParams.country)),
+	lib.formatParameter('Sales_Channel = ',lib.addNameIfNotNull(':salesChannel', attributes.queryParams.salesChannel)),
+	lib.formatParameter('Item_Type = ',lib.addNameIfNotNull(':itemType', attributes.queryParams.itemType)),
+	lib.formatParameter(setProfitCondition,lib.addNameIfNotNull(':profit', attributes.queryParams.profit))
+	] - null) joinBy ' AND '
+---
+if (arrString != "") (' WHERE ' ++ arrString ++ setCursorWithParams ++ sortByCondition ++ setPageSizeLimit) else (sortByCondition ++ setCursorWithNoParams ++ setPageSizeLimit)]]></ee:set-variable>
+				<ee:set-variable variableName="parameters"><![CDATA[%dw 2.0
+output application/java
+---
+{
+	(region: attributes.queryParams.region) if(attributes.queryParams.region?),
+	(country: attributes.queryParams.country) if(attributes.queryParams.country?),
+	(salesChannel: attributes.queryParams.salesChannel) if(attributes.queryParams.salesChannel?),
+	(itemType: attributes.queryParams.itemType) if(attributes.queryParams.itemType?),
+	(profit: vars.profit.value) if(attributes.queryParams.profit?),
+	(cursor: vars.cursor) if(vars.cursor?)
+}]]></ee:set-variable>
+			</ee:variables>
+		</ee:transform>
+		<logger level="INFO" doc:name="Logger" doc:id="8d8114c0-0398-4ac6-bd1e-163974b96b3a" message='#["Retreiving records from db"]' />
+		<db:select doc:name="Select" doc:id="9d0471e2-de01-4fce-9add-df9bf737c895" config-ref="Database_Config">
+			<db:sql>#[readUrl(&quot;classpath://sql/scripts/SelectAllSales.sql&quot;, &quot;application/java&quot;)  ++ vars.whereClause]</db:sql>
+			<db:input-parameters><![CDATA[#[vars.parameters]]]></db:input-parameters>
+		</db:select>
+		<ee:transform doc:name="Transform Message" doc:id="1442d896-105b-4294-b470-a5c18c575f1c" >
+			<ee:message >
+				<ee:set-payload ><![CDATA[%dw 2.0
+import * from dw::core::Strings
+output application/json
+---
+{
+records:payload map {
+($ mapObject (value,key,index) -> { 
+ (camelize(lower(key))):value
+})	
+},
+pageInfo:{
+next_cursor: payload[vars.size - 1].Order_ID
+}
+}]]></ee:set-payload>
+			</ee:message>
+		</ee:transform>
+	</sub-flow>
+	<sub-flow name="mule-pagination-application-impl_getSalesRecord_SubFlow" doc:id="07b0c072-612d-420d-8f43-d4b7b9a2b55b" >
+		<logger level="INFO" doc:name="Logger" doc:id="1e2a72ea-d7cf-41ed-a0df-0ffc8d19764c" message='#["Retreiving record from db"]' />
+		<db:select doc:name="Select" doc:id="974ade33-2142-4212-b04a-48f88e88c665" config-ref="Database_Config">
+			<db:sql>${file::sql/scripts/SelectSalesById.sql}</db:sql>
+			<db:input-parameters><![CDATA[#[{
+	"id": vars.salesId
+}]]]></db:input-parameters>
+		</db:select>
+		<ee:transform doc:name="Transform Message" doc:id="397f66af-74d3-4499-99e2-d69b9ceb7c3a" >
+			<ee:message >
+				<ee:set-payload ><![CDATA[%dw 2.0
+import * from dw::core::Strings
+output application/json
+---
+payload[0] mapObject (value,key,index) -> { 
+ (camelize(lower(key))):value
+}]]></ee:set-payload>
+			</ee:message>
+		</ee:transform>
+	</sub-flow>
+	<sub-flow name="mule-pagination-application-impl_deleteSalesRecord_SubFlow" doc:id="69992860-98ce-4110-8dd0-a72b54cf8bdb" >
+		<db:delete doc:name="Delete" doc:id="ee72ec28-6057-4495-91cc-b104c29ada3b" config-ref="Database_Config">
+			<db:sql >${file::sql/scripts/DeleteSalesById.sql}</db:sql>
+			<db:input-parameters ><![CDATA[#[{
+	"id": vars.salesId
+}]]]></db:input-parameters>
+		</db:delete>
+		<ee:transform doc:name="Transform Message" doc:id="51150fe8-4bee-4a7a-81a8-5540e1e501ed" >
+			<ee:message >
+				<ee:set-payload ><![CDATA[%dw 2.0
+output application/json
+---
+payload]]></ee:set-payload>
+			</ee:message>
+		</ee:transform>
+	</sub-flow>
+	<sub-flow name="mule-pagination-application-impl_updateSalesRecord_SubFlow" doc:id="d20abe1b-07a6-47fb-af3a-bfc6df39e704" >
+		<ee:transform doc:name="Set paramters" doc:id="af1e5240-8862-4ca8-b274-aa7bdad4a41d" >
+			<ee:message >
+			</ee:message>
+			<ee:variables >
+				<ee:set-variable variableName="parameters" ><![CDATA[%dw 2.0
+output application/java
+---
+{
+	(region: payload.region) if(payload.region?),
+	(country: payload.country) if(payload.country?),
+	(salesChannel: payload.salesChannel) if(payload.salesChannel?),
+	(itemType: payload.itemType) if(payload.itemType?),
+	(orderId: payload.orderId) if(payload.orderId?),
+	(unitSold: payload.unitSold) if(payload.unitSold?),
+	(unitPrice: payload.unitPrice) if(payload.unitPrice?),
+	(unitCost: payload.unitCost) if(payload.unitCost?),
+	(totalProfit: payload.totalProfit) if(payload.totalProfit?)
+	
+}]]></ee:set-variable>
+				<ee:set-variable variableName="whereClause" ><![CDATA[%dw 2.0
+output application/java
+
+var lib = readUrl("classpath://dw/scripts/myLib.wev")
+var arrString = ([
+	lib.formatParameter('Region = ', lib.addNameIfNotNull(':region', payload.region)),
+	lib.formatParameter('Country = ', lib.addNameIfNotNull(':country', payload.country)),
+	lib.formatParameter('Sales_Channel = ', lib.addNameIfNotNull(':salesChannel', payload.salesChannel)),
+	lib.formatParameter('Item_Type = ', lib.addNameIfNotNull(':itemType', payload.itemType)),
+	lib.formatParameter('Order_ID = ', lib.addNameIfNotNull(':orderId', payload.orderId)),
+	lib.formatParameter('Units_Sold = ', lib.addNameIfNotNull(':unitSold', payload.unitSold)),
+	lib.formatParameter('Unit_Price = ', lib.addNameIfNotNull(':unitPrice', payload.unitPrice)),
+	lib.formatParameter('Unit_Cost = ', lib.addNameIfNotNull(':unitCost', payload.unitCost)),
+	lib.formatParameter('Total_Profit = ', lib.addNameIfNotNull(':totalProfit', payload.totalProfit))
+	] - null) joinBy ','
+---
+if (arrString != "") (arrString) else ""]]></ee:set-variable>
+			</ee:variables>
+		</ee:transform>
+		<db:update doc:name="Update" doc:id="f3965ab8-24db-4a78-9a7d-0eb51fae36a5" config-ref="Database_Config">
+			<db:sql >#['Update Sales SET  ' ++ vars.whereClause ++ ' Where Order_ID =:orderId']</db:sql>
+			<db:input-parameters ><![CDATA[#[vars.parameters]]]></db:input-parameters>
+		</db:update>
+		<ee:transform doc:name="Transform Message" doc:id="e3c357f3-992c-43ab-bbeb-d3212336d301" >
+			<ee:message >
+				<ee:set-payload ><![CDATA[%dw 2.0
+output application/json
+---
+{
+	"message": "record successfully updated"
+}]]></ee:set-payload>
+			</ee:message>
+		</ee:transform>
+	</sub-flow>
+	<sub-flow name="mule-pagination-application-impl_createSalesRecord_SubFlow" doc:id="4cc3c70f-d82c-4c64-9217-26b41652663e" >
+		<ee:transform doc:name="Set paramters" doc:id="041cbedb-6cb0-4dc8-98a0-149cbacc5b0e" >
+			<ee:message >
+			</ee:message>
+			<ee:variables >
+				<ee:set-variable variableName="parameters" ><![CDATA[%dw 2.0
+output application/java
+---
+{
+	(region: payload.region) if(payload.region?),
+	(country: payload.country) if(payload.country?),
+	(salesChannel: payload.salesChannel) if(payload.salesChannel?),
+	(itemType: payload.itemType) if(payload.itemType?),
+	(orderId: payload.orderId) if(payload.orderId?),
+	(unitSold: payload.unitSold) if(payload.unitSold?),
+	(unitPrice: payload.unitPrice) if(payload.unitPrice?),
+	(unitCost: payload.unitCost) if(payload.unitCost?),
+	(totalProfit: payload.totalProfit) if(payload.totalProfit?)
+	
+}]]></ee:set-variable>
+			</ee:variables>
+		</ee:transform>
+		<db:insert doc:name="Insert" doc:id="d2b5c640-8c0c-470b-89cb-a3a55ace96bd" config-ref="Database_Config" autoGenerateKeys="true">
+			<db:sql >${file::sql/scripts/insertSales.sql}</db:sql>
+			<db:input-parameters ><![CDATA[#[vars.parameters]]]></db:input-parameters>
+		</db:insert>
+		<ee:transform doc:name="Transform Message" doc:id="b8620177-120c-41fb-8f50-471fa74a5278" >
+			<ee:message >
+				<ee:set-payload ><![CDATA[%dw 2.0
+output application/json	
+---
+{
+	"message": "record successfully created"
+}]]></ee:set-payload>
+			</ee:message>
+		</ee:transform>
+	</sub-flow>
+</mule>

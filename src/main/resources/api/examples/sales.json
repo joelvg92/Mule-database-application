@@ -1,0 +1,12 @@
+{
+    "orderId":1,
+    "region": "Asia",
+    "country": "India",
+    "itemType": "Office Supplies",
+    "unitSold":1,
+    "unitPrice": 29.99,
+    "unitCost": 19.99,
+    "totalProfit": 55.99,
+    "salesChannel": "Online"
+    
+  }

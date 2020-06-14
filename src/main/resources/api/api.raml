@@ -1,0 +1,126 @@
+#%RAML 1.0
+title: CMS-API
+baseUri: https://api.hqcis.cms.gov
+description: Provide an API example to show mule caching mechanism.
+mediaType:
+  - application/json
+version: 1.0.0
+protocols:
+  - HTTPS
+  - HTTP
+
+types:
+  Sales: !include types/sales.raml
+  SalesUpdate: !include types/sales-patch.raml
+  Error: !include types/error.raml
+  
+traits: 
+  paged: 
+    displayName: paged
+    queryParameters: 
+      pageSize:
+        displayName: size
+        description: Size of the page
+        type: number
+      pageCursor:
+        displayName: cursor
+        description: unique id to navigate to next page
+        required: false
+        type: number
+
+/sales:
+  post:
+    description: Create a new sales record
+    body:
+      application/json:
+        type: Sales
+        example: !include examples/sales.json  
+    responses:
+      201:
+        description: New sales record has been created.
+        headers:
+          location:
+            description: Provides the location of newly created record.
+            example: location=/sales/22
+            type: string
+        body:
+          type: Sales
+          example: !include examples/sales.json 
+    
+  get:
+    is: [paged]
+    description: Retrieve sales record based on various parameters.
+    queryParameters:
+      region:
+        description: filter by region
+        type: string
+        required: false
+      country:
+        description: filter by country
+        type: string
+        required: false        
+      salesChannel:
+        description: filter by salesChannel
+        type: string
+        required: false        
+      itemType:
+        description: filter by itemType
+        type: string
+        required: false
+      profit:
+        description: filter by total profit greater than(gt) or less than(lt)
+        type: string
+        required: false
+        example: "5000:gt"
+      sortBy:
+        description: sort the result by specific fields in ascending(asc) or descending order(desc). Default sorting is done by order id
+        type: string
+        required: false
+        example: "region:desc"               
+    responses:
+      200:
+        description: Return of the List of Sales.  If none match the query params then an empty list will be returned.
+        body:
+          type: Sales[]
+          example: !include examples/sales-list.json
+  /{salesId}:
+    get:
+      description: Retrieve a specific Sales record from the system
+      responses:
+        200:
+          description: Return a specific Sales
+          body:
+            type: Sales
+            example: !include examples/sales.json
+        404:
+          description: Sales ID does not exist in the system
+          body:
+            type: Error
+            example: !include examples/404.json
+    patch:
+      description: Update a portion of the Sales data.  Only data elements passed in will be updated.
+      body:
+        application/json:
+          type: SalesUpdate
+          example: !include examples/sales-patch.json
+      responses:
+        200:
+          description: Sales has been updated with the data that has been provided.  New composite record has been attached.
+          body:
+            type: Sales
+            example: !include examples/sales.json
+        404:
+          description: Sales was not found so no action was able to be taken
+          body:
+            type: Error
+            example: !include examples/404.json
+    delete:
+      description: Remove a Sales record from the system.
+      responses:
+        204:
+          description: Sales was deleted from the system and will no longer be available.
+        404:
+          description: Sales was not found so no action was taken.
+          body:
+            type: Error
+            example: !include examples/404.json

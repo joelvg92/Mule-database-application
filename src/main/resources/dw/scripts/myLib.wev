@@ -1,0 +1,24 @@
+%dw 2.0
+
+var currentTime= now() as String {format: "yyyy-MM-dd hh:mm:ss"}
+
+fun formatParameter(fieldName, fieldValue) =
+	(if (fieldValue != null) (fieldName ++ fieldValue) else null)
+fun formatStringParameter(fieldName, fieldValue) =
+	(if (fieldValue != null) (fieldName ++ '"' ++ fieldValue ++ '"') else null)
+
+
+fun addNameIfNotNull(name, value) =
+	(if ( value !=null) name else null)
+fun addStringValueIfNotNull(value) =
+	(if (value !=null) ('"' ++ value ++ '"') else null)
+
+---
+
+{
+	currentTime: currentTime,
+	formatParameter: formatParameter,
+	formatStringParameter: formatStringParameter,
+	addNameIfNotNull: addNameIfNotNull,
+	addStringValueIfNotNull: addStringValueIfNotNull
+}

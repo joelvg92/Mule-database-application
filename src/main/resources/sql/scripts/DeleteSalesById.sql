@@ -1,0 +1,1 @@
+Delete FROM Sales where Order_ID =:id
