@@ -68,8 +68,8 @@ output application/java
 				<ee:set-variable variableName="whereClause"><![CDATA[%dw 2.0
 output application/java
 var lib = readUrl("classpath://dw/scripts/myLib.wev")
-var setCursorWithNoParams = if (vars.sortBy.'type' == "ASC") " WHERE Order_ID >= :cursor " else if (vars.sortBy.'type' == "DESC") " WHERE Order_ID <= :cursor " else if (not isEmpty(vars.cursor)) " WHERE Order_ID >= :cursor " else ""
-var setCursorWithParams = if (vars.sortBy.'type' == "ASC") " AND Order_ID >= :cursor " else if (vars.sortBy.'type' == "DESC")  " AND Order_ID <= :cursor " else if (not isEmpty(vars.cursor))  " AND Order_ID >= :cursor "  else ""
+var setCursorWithNoParams = if (vars.sortBy.'type' == "ASC" and not isEmpty(vars.cursor)) " WHERE Order_ID >= :cursor " else if (vars.sortBy.'type' == "DESC" and not isEmpty(vars.cursor)) " WHERE Order_ID <= :cursor " else if (not isEmpty(vars.cursor)) " WHERE Order_ID >= :cursor " else ""
+var setCursorWithParams = if (vars.sortBy.'type' == "ASC" and not isEmpty(vars.cursor)) " AND Order_ID >= :cursor " else if (vars.sortBy.'type' == "DESC" and not isEmpty(vars.cursor))  " AND Order_ID <= :cursor " else if (not isEmpty(vars.cursor))  " AND Order_ID >= :cursor "  else ""
 var setPageSizeLimit = if(not isEmpty(vars.size)) " LIMIT " ++ vars.size else " LIMIT 20"
 var setProfitCondition = if(vars.profit.'type' == 'gt') 'Total_Profit >= ' else if(vars.profit.'type' == 'lt') 'Total_Profit <= ' else 'Total_Profit = '
 var sortByCondition = if(not isEmpty(vars.sortBy.value)) " ORDER BY " ++ vars.sortBy.value ++ " " ++ vars.sortBy.'type' ++ ",Order_ID " ++ vars.sortBy.'type'  else ""
@@ -95,11 +95,12 @@ output application/java
 }]]></ee:set-variable>
 			</ee:variables>
 		</ee:transform>
-		<logger level="INFO" doc:name="Logger" doc:id="8d8114c0-0398-4ac6-bd1e-163974b96b3a" message='#["Retreiving records from db"]' />
+		<logger level="INFO" doc:name="Logger" doc:id="8d8114c0-0398-4ac6-bd1e-163974b96b3a" message='#[vars.whereClause]' />
 		<db:select doc:name="Select" doc:id="9d0471e2-de01-4fce-9add-df9bf737c895" config-ref="Database_Config">
 			<db:sql>#[readUrl(&quot;classpath://sql/scripts/SelectAllSales.sql&quot;, &quot;application/java&quot;)  ++ vars.whereClause]</db:sql>
 			<db:input-parameters><![CDATA[#[vars.parameters]]]></db:input-parameters>
 		</db:select>
+		<logger level="INFO" doc:name="Logger" doc:id="7f8dfbc1-0fc5-45b6-83d1-98ca09d6a1ca" message="#[vars.sortBy.'type']"/>
 		<ee:transform doc:name="Transform Message" doc:id="1442d896-105b-4294-b470-a5c18c575f1c" >
 			<ee:message >
 				<ee:set-payload ><![CDATA[%dw 2.0
@@ -113,7 +114,12 @@ records:payload map {
 })	
 },
 pageInfo:{
-next_cursor: if (not isEmpty(payload[vars.size - 1].Order_ID)) (payload[vars.size - 1].Order_ID as Number) + 1 else null
+nextCursor: if (not isEmpty(payload[vars.size - 1].Order_ID))
+if(vars.sortBy.'type' == "ASC")
+(payload[vars.size - 1].Order_ID as Number) + 1 
+else
+(payload[vars.size - 1].Order_ID as Number) - 1 
+else null
 }
 }]]></ee:set-payload>
 			</ee:message>

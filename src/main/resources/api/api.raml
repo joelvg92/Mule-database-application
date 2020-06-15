@@ -11,6 +11,7 @@ protocols:
 
 types:
   Sales: !include types/sales.raml
+  SalesList: !include types/sales-list.raml
   SalesUpdate: !include types/sales-patch.raml
   Error: !include types/error.raml
   
@@ -81,7 +82,7 @@ traits:
       200:
         description: Return of the List of Sales.  If none match the query params then an empty list will be returned.
         body:
-          type: Sales[]
+          type: SalesList
           example: !include examples/sales-list.json
   /{salesId}:
     get:
