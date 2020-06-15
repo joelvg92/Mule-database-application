@@ -44,13 +44,13 @@ else if((attributes.queryParams.sortBy splitBy ":")[0] == "itemType")
 else if((attributes.queryParams.sortBy splitBy ":")[0] == "profit")
 "Total_Profit"
 else
-"Order_ID")
+null)
 else
 null)
 ---
 {
-"value": getDatabseFieldMapping default "Order_ID",
-"type": if(not isEmpty(attributes.queryParams.sortBy)) upper((attributes.queryParams.sortBy splitBy ":")[1]) default "DESC" else "DESC"
+"value": getDatabseFieldMapping,
+"type": if(not isEmpty(attributes.queryParams.sortBy)) upper((attributes.queryParams.sortBy splitBy ":")[1]) else null
 }]]></ee:set-variable>
 				<ee:set-variable variableName="profit" ><![CDATA[%dw 2.0
 output application/java 
@@ -68,11 +68,11 @@ output application/java
 				<ee:set-variable variableName="whereClause"><![CDATA[%dw 2.0
 output application/java
 var lib = readUrl("classpath://dw/scripts/myLib.wev")
-var setCursorWithNoParams = if (not isEmpty(vars.cursor)) " WHERE Order_ID > :cursor " else ""
-var setCursorWithParams = if (not isEmpty(vars.cursor)) " AND Order_ID > :cursor " else ""
+var setCursorWithNoParams = if (vars.sortBy.'type' == "ASC") " WHERE Order_ID >= :cursor " else if (vars.sortBy.'type' == "DESC") " WHERE Order_ID <= :cursor " else if (not isEmpty(vars.cursor)) " WHERE Order_ID >= :cursor " else ""
+var setCursorWithParams = if (vars.sortBy.'type' == "ASC") " AND Order_ID >= :cursor " else if (vars.sortBy.'type' == "DESC")  " AND Order_ID <= :cursor " else if (not isEmpty(vars.cursor))  " AND Order_ID >= :cursor "  else ""
 var setPageSizeLimit = if(not isEmpty(vars.size)) " LIMIT " ++ vars.size else " LIMIT 20"
-var setProfitCondition = if(not isEmpty(vars.profit.'type') and vars.profit.'type' == 'gt') "Total_Profit >= " else "Total_Profit <= " 
-var sortByCondition = if(not isEmpty(vars.sortBy)) " ORDER BY " ++ vars.sortBy.value ++ " " ++ vars.sortBy.'type' else ""
+var setProfitCondition = if(vars.profit.'type' == 'gt') 'Total_Profit >= ' else if(vars.profit.'type' == 'lt') 'Total_Profit <= ' else 'Total_Profit = '
+var sortByCondition = if(not isEmpty(vars.sortBy.value)) " ORDER BY " ++ vars.sortBy.value ++ " " ++ vars.sortBy.'type' ++ ",Order_ID " ++ vars.sortBy.'type'  else ""
 var arrString = ([
 	lib.formatParameter('Region = ',lib.addNameIfNotNull(':region', attributes.queryParams.region)),
 	lib.formatParameter('Country = ',lib.addNameIfNotNull(':country', attributes.queryParams.country)),
@@ -81,7 +81,7 @@ var arrString = ([
 	lib.formatParameter(setProfitCondition,lib.addNameIfNotNull(':profit', attributes.queryParams.profit))
 	] - null) joinBy ' AND '
 ---
-if (arrString != "") (' WHERE ' ++ arrString ++ setCursorWithParams ++ sortByCondition ++ setPageSizeLimit) else (sortByCondition ++ setCursorWithNoParams ++ setPageSizeLimit)]]></ee:set-variable>
+if (arrString != "") (' WHERE ' ++ arrString ++ setCursorWithParams ++ sortByCondition ++ setPageSizeLimit) else (setCursorWithNoParams ++ sortByCondition ++ setPageSizeLimit)]]></ee:set-variable>
 				<ee:set-variable variableName="parameters"><![CDATA[%dw 2.0
 output application/java
 ---
@@ -113,7 +113,7 @@ records:payload map {
 })	
 },
 pageInfo:{
-next_cursor: payload[vars.size - 1].Order_ID
+next_cursor: if (not isEmpty(payload[vars.size - 1].Order_ID)) (payload[vars.size - 1].Order_ID as Number) + 1 else null
 }
 }]]></ee:set-payload>
 			</ee:message>
