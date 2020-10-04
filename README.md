@@ -1,2 +1,2 @@
 # Mule-database-application
-A sample app with in memory database and pagination
+A sample mule application with in memory database and pagination
